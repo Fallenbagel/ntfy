@@ -130,3 +130,51 @@ GitHub have been hopeless. In case it ever becomes available, I want to know imm
 It's possible to use custom scripts for all the *arr services, plus SABnzbd. Notifications for downloads, warnings, grabs etc.
 
 Some simple bash scripts to achieve this are available <a href="https://github.com/nickexyz/ntfy-shellscripts">here</a>
+
+## Low memory alert
+So this simple bash script that will run in 5 minutes interval to check the memory and if **80%** (you can change this percentage by editing the `0.8` value in the script) of memory has been used, it will send an alert. You can run this manually in the background or as a systemd service. In order to use this script, you need the following dependency installed `bc` (bash calculator) installed.
+
+```bash
+#!/bin/bash
+times=0
+topicurl=https://ntfy.sh/mytopic
+
+while true;do
+used=$(free -m |awk 'NR==2 {print $3}')
+total=$(free -m |awk 'NR==2 {print $2}')
+result=$(echo "$used / $total" |bc -l)
+result2=$(echo "$result > 0.8" |bc) # Change the 0.8 to any percentage you want and remember to reflect it in the message that is being sent!
+
+if [ $result2 -eq 1 ];then
+        let times+=1
+        if [ $times -gt 5 ];then
+                curl \
+                -d "More than 80% of ram used" \
+                -H "Title: Low system memory on $(whoami)" \
+                -H "Priority: urgent" \
+                -H "Tags: warning" \
+                $topicurl
+        times=0
+        fi
+else
+        times=0
+fi
+
+sleep 5
+done
+```
+
+To create a systemd service for this script, `nano /etc/systemd/system/memoryalert.service`:
+
+```
+[Unit]
+Description=Memory check
+
+[Service]
+Type=simple
+OnBootSec=10min
+ExecStart={scriptdirectory}/disk.sh #point it to your script
+
+[Install]
+WantedBy=multi-user.target
+```
